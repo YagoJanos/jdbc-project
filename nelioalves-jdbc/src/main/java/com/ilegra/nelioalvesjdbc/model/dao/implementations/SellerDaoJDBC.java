@@ -55,7 +55,6 @@ public class SellerDaoJDBC implements SellerDao {
         }
         finally {
             DB.closeStatement(st);
-            DB.closeConnection();
         }
 
     }
@@ -78,12 +77,25 @@ public class SellerDaoJDBC implements SellerDao {
             st.executeUpdate();
         } catch (SQLException e){
             throw new DbException(e.getMessage());
+        } finally {
+            DB.closeStatement(st);
         }
     }
 
     @Override
     public void deleteById(Integer id) {
+        PreparedStatement pst = null;
 
+        try {
+            pst = connection.prepareStatement("DELETE FROM seller WHERE Id = ?");
+            pst.setInt(1, id);
+
+            pst.executeUpdate();
+        } catch (SQLException e){
+            throw new DbException(e.getMessage());
+        } finally {
+            DB.closeStatement(pst);
+        }
     }
 
     @Override
