@@ -6,10 +6,7 @@ import com.ilegra.nelioalvesjdbc.model.dao.SellerDao;
 import com.ilegra.nelioalvesjdbc.model.entities.Department;
 import com.ilegra.nelioalvesjdbc.model.entities.Seller;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +21,42 @@ public class SellerDaoJDBC implements SellerDao {
     }
 
     @Override
-    public void insert(Seller obj) {
+    public void insert(Seller seller) {
+        PreparedStatement st = null;
+        try {
+            st = connection.prepareStatement(
+                    "INSERT INTO seller " +
+                        "(Name, Email, BirthDate, BaseSalary, DepartmentId) " +
+                        "VALUES " +
+                        "(?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS
+                );
+
+            st.setString(1, seller.getName());
+            st.setString(2, seller.getEmail());
+            st.setDate(3, new java.sql.Date(seller.getBirthDate().getTime()));
+            st.setDouble(4, seller.getBaseSalary());
+            st.setInt(5, seller.getDepartment().getId());
+
+            int rowsAffected = st.executeUpdate();
+
+            if (rowsAffected > 0){ //Se uma linha é alterada
+                ResultSet rs = st.getGeneratedKeys(); //Pega o id da linha alterada
+                if (rs.next()) { //
+                    int id = rs.getInt(1);
+                    seller.setId(id); //Insere o id no objeto (acredito que o certo seria retornar outro objeto)
+                }
+                DB.closeResultSet(rs);
+            } else {
+                //Pois uma linha deveria ser criada no banco de dados
+                throw new DbException("Unexpected Error! No rows affected!");
+            }
+        }catch (SQLException e){
+            throw new DbException(e.getMessage());
+        }
+        finally {
+            DB.closeStatement(st);
+            DB.closeConnection();
+        }
 
     }
 
@@ -48,6 +80,8 @@ public class SellerDaoJDBC implements SellerDao {
                                                 "FROM seller INNER JOIN department " +
                                                 "ON seller.DepartmentId = department.Id " +
                                                 "WHERE seller.Id = ?");
+                                                //O select pega as colunas da segunda tabela que não estão na primeira
+                                                //O where que determina que é pelo id.
             st.setInt(1, id);
             rs = st.executeQuery();
 
@@ -78,20 +112,22 @@ public class SellerDaoJDBC implements SellerDao {
                     "ON seller.DepartmentId = department.Id " +
                     "WHERE DepartmentId = ? " +
                     "ORDER BY Name");
+                    //o where usa a coluna da primeira coluna que é chave estrangeira
             st.setInt(1, department.getId());
 
             rs = st.executeQuery();
 
             List<Seller> sellerList = new ArrayList<>();
-            Map<Integer, Department> map = new HashMap<>();
+            Map<Integer, Department> map = new HashMap<>(); //para evitar repetição de objetos da segunda tabela
+                                                            //devido a múltiplas referências na linha da primeira
 
             while (rs.next()){
 
-                Department dep = map.get(rs.getInt("DepartmentId"));
-
-                if(dep == null){
-                    dep = instantiateDepartment(rs);
-                    map.put(rs.getInt("DepartmentId"), dep);
+                int departmentId = rs.getInt("DepartmentId");
+                Department dep = map.get(departmentId); //tenta extrair do map o valor da coluna usada como restrição
+                if(dep == null){ //se não conseguiu foi porque não havia
+                    dep = instantiateDepartment(rs); //cria o valor então
+                    map.put(departmentId, dep); //insere no map o valor criado
                 }
 
                 Seller seller = instantiateSeller(rs, dep);
@@ -118,7 +154,7 @@ public class SellerDaoJDBC implements SellerDao {
                     "FROM seller INNER JOIN department " +
                     "ON seller.DepartmentId = department.Id " +
                     "ORDER BY Name");
-
+                    //Como as outras buscas, mas sem restrição nenhuma.
             rs = st.executeQuery();
 
             List<Seller> sellerList = new ArrayList<>();
