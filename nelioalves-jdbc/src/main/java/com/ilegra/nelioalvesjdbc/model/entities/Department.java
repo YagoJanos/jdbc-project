@@ -1,4 +1,4 @@
-package model.entities;
+package com.ilegra.nelioalvesjdbc.model.entities;
 
 import java.io.Serializable;
 import java.util.Objects;
